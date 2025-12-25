@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Update version from release tag
+        run: npm version ${{ github.event.release.tag_name }} --no-git-tag-version --allow-same-version
+
       - name: Publish to npm
         run: npm publish
         env:
