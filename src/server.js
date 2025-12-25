@@ -10,6 +10,7 @@ import { sendMessage, sendMessageStream, listModels, getModelQuotas } from './cl
 import { forceRefresh } from './token-extractor.js';
 import { REQUEST_BODY_LIMIT } from './constants.js';
 import { AccountManager } from './account-manager.js';
+import { formatDuration } from './utils/helpers.js';
 
 const app = express();
 
@@ -224,7 +225,15 @@ app.get('/account-limits', async (req, res) => {
 
                 // Get status and error from accountLimits
                 const accLimit = accountLimits.find(a => a.email === acc.email);
-                const accStatus = acc.isInvalid ? 'invalid' : (acc.isRateLimited ? 'rate-limited' : (accLimit?.status || 'ok'));
+                let accStatus;
+                if (acc.isInvalid) {
+                    accStatus = 'invalid';
+                } else if (acc.isRateLimited) {
+                    const remaining = acc.rateLimitResetTime ? acc.rateLimitResetTime - Date.now() : 0;
+                    accStatus = remaining > 0 ? `limited (${formatDuration(remaining)})` : 'rate-limited';
+                } else {
+                    accStatus = accLimit?.status || 'ok';
+                }
 
                 // Get reset time from quota API
                 const claudeModel = sortedModels.find(m => m.includes('claude'));
