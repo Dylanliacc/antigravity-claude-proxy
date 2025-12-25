@@ -78,8 +78,8 @@ The server runs on `http://localhost:8080` by default.
 # Health check
 curl http://localhost:8080/health
 
-# Check account status
-curl http://localhost:8080/accounts
+# Check account status and quota limits
+curl "http://localhost:8080/account-limits?format=table"
 ```
 
 ---
@@ -149,7 +149,7 @@ When you add multiple accounts, the proxy automatically:
 Check account status anytime:
 
 ```bash
-curl http://localhost:8080/accounts
+curl "http://localhost:8080/account-limits?format=table"
 ```
 
 ---
@@ -159,7 +159,7 @@ curl http://localhost:8080/accounts
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/accounts` | GET | Account pool status |
+| `/account-limits` | GET | Account status and quota limits (add `?format=table` for ASCII table) |
 | `/v1/messages` | POST | Anthropic Messages API |
 | `/v1/models` | GET | List available models |
 | `/refresh-token` | POST | Force token refresh |

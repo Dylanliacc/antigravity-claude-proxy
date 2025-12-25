@@ -20,7 +20,7 @@ app.listen(PORT, () => {
 ║    POST /v1/messages  - Anthropic Messages API               ║
 ║    GET  /v1/models    - List available models                ║
 ║    GET  /health       - Health check                         ║
-║    GET  /accounts     - Account pool status                  ║
+║    GET  /account-limits - Account status & quotas              ║
 ║    POST /refresh-token - Force token refresh                 ║
 ║                                                              ║
 ║  Usage with Claude Code:                                     ║

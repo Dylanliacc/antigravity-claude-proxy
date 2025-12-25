@@ -619,6 +619,15 @@ export class AccountManager {
     getSettings() {
         return { ...this.#settings };
     }
+
+    /**
+     * Get all accounts (internal use for quota fetching)
+     * Returns the full account objects including credentials
+     * @returns {Array<Object>} Array of account objects
+     */
+    getAllAccounts() {
+        return this.#accounts;
+    }
 }
 
 export default AccountManager;
