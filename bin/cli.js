@@ -17,12 +17,12 @@ const command = args[0];
 
 function showHelp() {
   console.log(`
-antigravity-proxy v${packageJson.version}
+antigravity-claude-proxy v${packageJson.version}
 
 Proxy server for using Antigravity's Claude models with Claude Code CLI.
 
 USAGE:
-  antigravity-proxy <command> [options]
+  antigravity-claude-proxy <command> [options]
 
 COMMANDS:
   start                 Start the proxy server (default port: 8080)
@@ -41,10 +41,10 @@ ENVIRONMENT:
   PORT                  Server port (default: 8080)
 
 EXAMPLES:
-  antigravity-proxy start
-  PORT=3000 antigravity-proxy start
-  antigravity-proxy accounts add
-  antigravity-proxy accounts list
+  antigravity-claude-proxy start
+  PORT=3000 antigravity-claude-proxy start
+  antigravity-claude-proxy accounts add
+  antigravity-claude-proxy accounts list
 
 CONFIGURATION:
   Claude Code CLI (~/.claude/settings.json):
