@@ -25,15 +25,33 @@ A proxy server that exposes an **Anthropic-compatible API** backed by **Antigrav
 
 ---
 
-## Quick Start
+## Installation
 
-### 1. Install Dependencies
+### Option 1: npm (Recommended)
 
 ```bash
-npm install
+# Run directly with npx (no install needed)
+npx antigravity-claude-proxy start
+
+# Or install globally
+npm install -g antigravity-claude-proxy
+antigravity-claude-proxy start
 ```
 
-### 2. Add Account(s)
+### Option 2: Clone Repository
+
+```bash
+git clone https://github.com/badri-s2001/antigravity_claude_server.git
+cd antigravity_claude_server
+npm install
+npm start
+```
+
+---
+
+## Quick Start
+
+### 1. Add Account(s)
 
 You have two options:
 
@@ -46,6 +64,13 @@ If you have Antigravity installed and logged in, the proxy will automatically ex
 Add one or more Google accounts for load balancing:
 
 ```bash
+# If installed via npm
+antigravity-claude-proxy accounts add
+
+# If using npx
+npx antigravity-claude-proxy accounts add
+
+# If cloned locally
 npm run accounts:add
 ```
 
@@ -55,24 +80,31 @@ Manage accounts:
 
 ```bash
 # List all accounts
-npm run accounts:list
+antigravity-claude-proxy accounts list
 
 # Verify accounts are working
-npm run accounts:verify
+antigravity-claude-proxy accounts verify
 
 # Interactive account management
-npm run accounts
+antigravity-claude-proxy accounts
 ```
 
-### 3. Start the Proxy Server
+### 2. Start the Proxy Server
 
 ```bash
+# If installed via npm
+antigravity-claude-proxy start
+
+# If using npx
+npx antigravity-claude-proxy start
+
+# If cloned locally
 npm start
 ```
 
 The server runs on `http://localhost:8080` by default.
 
-### 4. Verify It's Working
+### 3. Verify It's Working
 
 ```bash
 # Health check
@@ -114,7 +146,7 @@ Add this configuration:
 
 ```bash
 # Make sure the proxy is running first
-npm start
+antigravity-claude-proxy start
 
 # In another terminal, run Claude Code
 claude
@@ -199,7 +231,7 @@ If using single-account mode with Antigravity:
 1. Make sure Antigravity app is installed and running
 2. Ensure you're logged in to Antigravity
 
-Or add accounts via OAuth instead: `npm run accounts:add`
+Or add accounts via OAuth instead: `antigravity-claude-proxy accounts add`
 
 ### 401 Authentication Errors
 
@@ -210,7 +242,7 @@ curl -X POST http://localhost:8080/refresh-token
 
 Or re-authenticate the account:
 ```bash
-npm run accounts
+antigravity-claude-proxy accounts
 ```
 
 ### Rate Limiting (429)
@@ -221,7 +253,7 @@ With multiple accounts, the proxy automatically switches to the next available a
 
 Re-authenticate the account:
 ```bash
-npm run accounts
+antigravity-claude-proxy accounts
 # Choose "Re-authenticate" for the invalid account
 ```
 
