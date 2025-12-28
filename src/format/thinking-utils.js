@@ -257,3 +257,225 @@ export function reorderAssistantContent(content) {
 
     return reordered;
 }
+
+// ============================================================================
+// Thinking Recovery Functions
+// ============================================================================
+
+/**
+ * Check if a message has any VALID (signed) thinking blocks.
+ * Only counts thinking blocks that have valid signatures, not unsigned ones
+ * that will be dropped later.
+ *
+ * @param {Object} message - Message to check
+ * @returns {boolean} True if message has valid signed thinking blocks
+ */
+function messageHasValidThinking(message) {
+    const content = message.content || message.parts || [];
+    if (!Array.isArray(content)) return false;
+    return content.some(block => {
+        if (!isThinkingPart(block)) return false;
+        // Check for valid signature (Anthropic style)
+        if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH) return true;
+        // Check for thoughtSignature (Gemini style on functionCall)
+        if (block.thoughtSignature && block.thoughtSignature.length >= MIN_SIGNATURE_LENGTH) return true;
+        return false;
+    });
+}
+
+/**
+ * Check if a message has tool_use blocks
+ * @param {Object} message - Message to check
+ * @returns {boolean} True if message has tool_use blocks
+ */
+function messageHasToolUse(message) {
+    const content = message.content || message.parts || [];
+    if (!Array.isArray(content)) return false;
+    return content.some(block =>
+        block.type === 'tool_use' || block.functionCall
+    );
+}
+
+/**
+ * Check if a message has tool_result blocks
+ * @param {Object} message - Message to check
+ * @returns {boolean} True if message has tool_result blocks
+ */
+function messageHasToolResult(message) {
+    const content = message.content || message.parts || [];
+    if (!Array.isArray(content)) return false;
+    return content.some(block =>
+        block.type === 'tool_result' || block.functionResponse
+    );
+}
+
+/**
+ * Check if message is a plain user text message (not tool_result)
+ * @param {Object} message - Message to check
+ * @returns {boolean} True if message is plain user text
+ */
+function isPlainUserMessage(message) {
+    if (message.role !== 'user') return false;
+    const content = message.content || message.parts || [];
+    if (!Array.isArray(content)) return typeof content === 'string';
+    // Check if it has tool_result blocks
+    return !content.some(block =>
+        block.type === 'tool_result' || block.functionResponse
+    );
+}
+
+/**
+ * Analyze conversation state to detect if we're in a corrupted state.
+ * This includes:
+ * 1. Tool loop: assistant has tool_use followed by tool_results (normal flow)
+ * 2. Interrupted tool: assistant has tool_use followed by plain user message (interrupted)
+ *
+ * @param {Array<Object>} messages - Array of messages
+ * @returns {Object} State object with inToolLoop, interruptedTool, turnHasThinking, etc.
+ */
+export function analyzeConversationState(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+        return { inToolLoop: false, interruptedTool: false, turnHasThinking: false, toolResultCount: 0 };
+    }
+
+    // Find the last assistant message
+    let lastAssistantIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'assistant' || messages[i].role === 'model') {
+            lastAssistantIdx = i;
+            break;
+        }
+    }
+
+    if (lastAssistantIdx === -1) {
+        return { inToolLoop: false, interruptedTool: false, turnHasThinking: false, toolResultCount: 0 };
+    }
+
+    const lastAssistant = messages[lastAssistantIdx];
+    const hasToolUse = messageHasToolUse(lastAssistant);
+    const hasThinking = messageHasValidThinking(lastAssistant);
+
+    // Count trailing tool results after the assistant message
+    let toolResultCount = 0;
+    let hasPlainUserMessageAfter = false;
+    for (let i = lastAssistantIdx + 1; i < messages.length; i++) {
+        if (messageHasToolResult(messages[i])) {
+            toolResultCount++;
+        }
+        if (isPlainUserMessage(messages[i])) {
+            hasPlainUserMessageAfter = true;
+        }
+    }
+
+    // We're in a tool loop if: assistant has tool_use AND there are tool_results after
+    const inToolLoop = hasToolUse && toolResultCount > 0;
+
+    // We have an interrupted tool if: assistant has tool_use, NO tool_results,
+    // but there IS a plain user message after (user interrupted and sent new message)
+    const interruptedTool = hasToolUse && toolResultCount === 0 && hasPlainUserMessageAfter;
+
+    return {
+        inToolLoop,
+        interruptedTool,
+        turnHasThinking: hasThinking,
+        toolResultCount,
+        lastAssistantIdx
+    };
+}
+
+/**
+ * Check if conversation needs thinking recovery.
+ * Returns true when:
+ * 1. We're in a tool loop but have no valid thinking blocks, OR
+ * 2. We have an interrupted tool with no valid thinking blocks
+ *
+ * @param {Array<Object>} messages - Array of messages
+ * @returns {boolean} True if thinking recovery is needed
+ */
+export function needsThinkingRecovery(messages) {
+    const state = analyzeConversationState(messages);
+    // Need recovery if (tool loop OR interrupted tool) AND no thinking
+    return (state.inToolLoop || state.interruptedTool) && !state.turnHasThinking;
+}
+
+/**
+ * Strip all thinking blocks from messages.
+ * Used before injecting synthetic messages for recovery.
+ *
+ * @param {Array<Object>} messages - Array of messages
+ * @returns {Array<Object>} Messages with all thinking blocks removed
+ */
+function stripAllThinkingBlocks(messages) {
+    return messages.map(msg => {
+        const content = msg.content || msg.parts;
+        if (!Array.isArray(content)) return msg;
+
+        const filtered = content.filter(block => !isThinkingPart(block));
+
+        if (msg.content) {
+            return { ...msg, content: filtered.length > 0 ? filtered : [{ type: 'text', text: '' }] };
+        } else if (msg.parts) {
+            return { ...msg, parts: filtered.length > 0 ? filtered : [{ text: '' }] };
+        }
+        return msg;
+    });
+}
+
+/**
+ * Close tool loop by injecting synthetic messages.
+ * This allows the model to start a fresh turn when thinking is corrupted.
+ *
+ * When thinking blocks are stripped (no valid signatures) and we're in the
+ * middle of a tool loop OR have an interrupted tool, the conversation is in
+ * a corrupted state. This function injects synthetic messages to close the
+ * loop and allow the model to continue.
+ *
+ * @param {Array<Object>} messages - Array of messages
+ * @returns {Array<Object>} Modified messages with synthetic messages injected
+ */
+export function closeToolLoopForThinking(messages) {
+    const state = analyzeConversationState(messages);
+
+    // Handle neither tool loop nor interrupted tool
+    if (!state.inToolLoop && !state.interruptedTool) return messages;
+
+    // Strip all thinking blocks
+    let modified = stripAllThinkingBlocks(messages);
+
+    if (state.interruptedTool) {
+        // For interrupted tools: just strip thinking and add a synthetic assistant message
+        // to acknowledge the interruption before the user's new message
+
+        // Find where to insert the synthetic message (before the plain user message)
+        const insertIdx = state.lastAssistantIdx + 1;
+
+        // Insert synthetic assistant message acknowledging interruption
+        modified.splice(insertIdx, 0, {
+            role: 'assistant',
+            content: [{ type: 'text', text: '[Tool call was interrupted.]' }]
+        });
+
+        console.log('[ThinkingUtils] Applied thinking recovery for interrupted tool');
+    } else {
+        // For tool loops: add synthetic messages to close the loop
+        const syntheticText = state.toolResultCount === 1
+            ? '[Tool execution completed.]'
+            : `[${state.toolResultCount} tool executions completed.]`;
+
+        // Inject synthetic model message to complete the turn
+        modified.push({
+            role: 'assistant',
+            content: [{ type: 'text', text: syntheticText }]
+        });
+
+        // Inject synthetic user message to start fresh
+        modified.push({
+            role: 'user',
+            content: [{ type: 'text', text: '[Continue]' }]
+        });
+
+        console.log('[ThinkingUtils] Applied thinking recovery for tool loop');
+    }
+
+    return modified;
+}

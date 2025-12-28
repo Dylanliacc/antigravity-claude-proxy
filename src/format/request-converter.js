@@ -14,7 +14,9 @@ import {
     restoreThinkingSignatures,
     removeTrailingThinkingBlocks,
     reorderAssistantContent,
-    filterUnsignedThinkingBlocks
+    filterUnsignedThinkingBlocks,
+    needsThinkingRecovery,
+    closeToolLoopForThinking
 } from './thinking-utils.js';
 
 /**
@@ -74,9 +76,18 @@ export function convertAnthropicToGoogle(anthropicRequest) {
         }
     }
 
+    // Apply thinking recovery for Gemini thinking models when needed
+    // This handles corrupted tool loops where thinking blocks are stripped
+    // Claude models handle this differently and don't need this recovery
+    let processedMessages = messages;
+    if (isGeminiModel && isThinking && needsThinkingRecovery(messages)) {
+        console.log('[RequestConverter] Applying thinking recovery for Gemini');
+        processedMessages = closeToolLoopForThinking(messages);
+    }
+
     // Convert messages to contents, then filter unsigned thinking blocks
-    for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i];
+    for (let i = 0; i < processedMessages.length; i++) {
+        const msg = processedMessages[i];
         let msgContent = msg.content;
 
         // For assistant messages, process thinking blocks and reorder content
@@ -90,6 +101,14 @@ export function convertAnthropicToGoogle(anthropicRequest) {
         }
 
         const parts = convertContentToParts(msgContent, isClaudeModel, isGeminiModel);
+
+        // SAFETY: Google API requires at least one part per content message
+        // This happens when all thinking blocks are filtered out (unsigned)
+        if (parts.length === 0) {
+            console.log('[RequestConverter] WARNING: Empty parts array after filtering, adding placeholder');
+            parts.push({ text: '' });
+        }
+
         const content = {
             role: convertRole(msg.role),
             parts: parts

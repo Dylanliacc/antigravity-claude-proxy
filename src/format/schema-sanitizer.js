@@ -289,6 +289,127 @@ function flattenAnyOfOneOf(schema) {
     return result;
 }
 
+// ============================================================================
+// Enhanced Schema Hints (for preserving semantic information)
+// ============================================================================
+
+/**
+ * Add hints for enum values (if ≤10 values).
+ * This preserves enum information in the description since Gemini
+ * may not fully support enums in all cases.
+ *
+ * @param {Object} schema - Schema to process
+ * @returns {Object} Schema with enum hints added to description
+ */
+function addEnumHints(schema) {
+    if (!schema || typeof schema !== 'object') return schema;
+    if (Array.isArray(schema)) return schema.map(addEnumHints);
+
+    let result = { ...schema };
+
+    // Add enum hint if present and reasonable size
+    if (Array.isArray(result.enum) && result.enum.length > 1 && result.enum.length <= 10) {
+        const vals = result.enum.map(v => String(v)).join(', ');
+        result = appendDescriptionHint(result, `Allowed: ${vals}`);
+    }
+
+    // Recursively process properties
+    if (result.properties && typeof result.properties === 'object') {
+        const newProps = {};
+        for (const [key, value] of Object.entries(result.properties)) {
+            newProps[key] = addEnumHints(value);
+        }
+        result.properties = newProps;
+    }
+
+    // Recursively process items
+    if (result.items) {
+        result.items = Array.isArray(result.items)
+            ? result.items.map(addEnumHints)
+            : addEnumHints(result.items);
+    }
+
+    return result;
+}
+
+/**
+ * Add hints for additionalProperties: false.
+ * This informs the model that extra properties are not allowed.
+ *
+ * @param {Object} schema - Schema to process
+ * @returns {Object} Schema with additionalProperties hints added
+ */
+function addAdditionalPropertiesHints(schema) {
+    if (!schema || typeof schema !== 'object') return schema;
+    if (Array.isArray(schema)) return schema.map(addAdditionalPropertiesHints);
+
+    let result = { ...schema };
+
+    if (result.additionalProperties === false) {
+        result = appendDescriptionHint(result, 'No extra properties allowed');
+    }
+
+    // Recursively process properties
+    if (result.properties && typeof result.properties === 'object') {
+        const newProps = {};
+        for (const [key, value] of Object.entries(result.properties)) {
+            newProps[key] = addAdditionalPropertiesHints(value);
+        }
+        result.properties = newProps;
+    }
+
+    // Recursively process items
+    if (result.items) {
+        result.items = Array.isArray(result.items)
+            ? result.items.map(addAdditionalPropertiesHints)
+            : addAdditionalPropertiesHints(result.items);
+    }
+
+    return result;
+}
+
+/**
+ * Move unsupported constraints to description hints.
+ * This preserves constraint information that would otherwise be lost
+ * when we strip unsupported keywords.
+ *
+ * @param {Object} schema - Schema to process
+ * @returns {Object} Schema with constraint hints added to description
+ */
+function moveConstraintsToDescription(schema) {
+    if (!schema || typeof schema !== 'object') return schema;
+    if (Array.isArray(schema)) return schema.map(moveConstraintsToDescription);
+
+    const CONSTRAINTS = ['minLength', 'maxLength', 'pattern', 'minimum', 'maximum',
+                         'minItems', 'maxItems', 'format'];
+
+    let result = { ...schema };
+
+    for (const constraint of CONSTRAINTS) {
+        if (result[constraint] !== undefined && typeof result[constraint] !== 'object') {
+            result = appendDescriptionHint(result, `${constraint}: ${result[constraint]}`);
+        }
+    }
+
+    // Recursively process properties
+    if (result.properties && typeof result.properties === 'object') {
+        const newProps = {};
+        for (const [key, value] of Object.entries(result.properties)) {
+            newProps[key] = moveConstraintsToDescription(value);
+        }
+        result.properties = newProps;
+    }
+
+    // Recursively process items
+    if (result.items) {
+        result.items = Array.isArray(result.items)
+            ? result.items.map(moveConstraintsToDescription)
+            : moveConstraintsToDescription(result.items);
+    }
+
+    return result;
+}
+
 /**
  * Flatten array type fields and track nullable properties.
  * Converts { type: ["string", "null"] } to { type: "string" } with nullable hint.
@@ -456,6 +577,15 @@ export function cleanSchemaForGemini(schema) {
 
     // Phase 1: Convert $refs to hints
     let result = convertRefsToHints(schema);
+
+    // Phase 1b: Add enum hints (preserves enum info in description)
+    result = addEnumHints(result);
+
+    // Phase 1c: Add additionalProperties hints
+    result = addAdditionalPropertiesHints(result);
+
+    // Phase 1d: Move constraints to description (before they get stripped)
+    result = moveConstraintsToDescription(result);
 
     // Phase 2a: Merge allOf schemas
     result = mergeAllOf(result);

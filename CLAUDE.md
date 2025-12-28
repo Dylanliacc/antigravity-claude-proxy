@@ -54,8 +54,9 @@ Claude Code CLI → Express Server (server.js) → CloudCode Client → Antigrav
   - `request-converter.js` - Anthropic → Google request conversion
   - `response-converter.js` - Google → Anthropic response conversion
   - `content-converter.js` - Message content and role conversion
-  - `schema-sanitizer.js` - JSON Schema cleaning for Gemini API compatibility
-  - `thinking-utils.js` - Thinking block validation, filtering, and reordering
+  - `schema-sanitizer.js` - JSON Schema cleaning for Gemini API compatibility (preserves constraints/enums as hints)
+  - `thinking-utils.js` - Thinking block validation, filtering, reordering, and recovery logic
+  - `signature-cache.js` - In-memory cache for Gemini thoughtSignatures
 - **src/account-manager.js**: Multi-account pool with sticky selection, rate limit handling, and automatic cooldown
 - **src/oauth.js**: Google OAuth implementation for adding accounts
 - **src/token-extractor.js**: Extracts tokens from local Antigravity app installation (legacy single-account mode)
@@ -94,8 +95,8 @@ Claude Code CLI → Express Server (server.js) → CloudCode Client → Antigrav
 **Model Family Handling:**
 - `getModelFamily(model)` returns `'claude'` or `'gemini'` based on model name
 - Claude models use `signature` field on thinking blocks
-- Gemini models use `thoughtSignature` field on functionCall parts
-- When Claude Code strips `thoughtSignature`, the proxy uses Google's `skip_thought_signature_validator` sentinel value
+- Gemini models use `thoughtSignature` field on functionCall parts (cached or sentinel value)
+- When Claude Code strips `thoughtSignature`, the proxy tries to restore from cache, then falls back to `skip_thought_signature_validator`
 
 **Error Handling:** Use custom error classes from `src/errors.js`:
 - `RateLimitError` - 429/RESOURCE_EXHAUSTED errors

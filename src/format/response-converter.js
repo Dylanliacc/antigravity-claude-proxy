@@ -5,6 +5,7 @@
 
 import crypto from 'crypto';
 import { MIN_SIGNATURE_LENGTH } from '../constants.js';
+import { cacheSignature } from './signature-cache.js';
 
 /**
  * Convert Google Generative AI response to Anthropic Messages API format
@@ -58,6 +59,8 @@ export function convertGoogleToAnthropic(googleResponse, model) {
             // For Gemini 3+, include thoughtSignature from the part level
             if (part.thoughtSignature && part.thoughtSignature.length >= MIN_SIGNATURE_LENGTH) {
                 toolUseBlock.thoughtSignature = part.thoughtSignature;
+                // Cache for future requests (Claude Code may strip this field)
+                cacheSignature(toolId, part.thoughtSignature);
             }
 
             anthropicContent.push(toolUseBlock);

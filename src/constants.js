@@ -87,6 +87,14 @@ export const MIN_SIGNATURE_LENGTH = 50; // Minimum valid thinking signature leng
 // Gemini-specific limits
 export const GEMINI_MAX_OUTPUT_TOKENS = 16384;
 
+// Gemini signature handling
+// Sentinel value to skip thought signature validation when Claude Code strips the field
+// See: https://ai.google.dev/gemini-api/docs/thought-signatures
+export const GEMINI_SKIP_SIGNATURE = 'skip_thought_signature_validator';
+
+// Cache TTL for Gemini thoughtSignatures (2 hours)
+export const GEMINI_SIGNATURE_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+
 /**
  * Get the model family from model name (dynamic detection, no hardcoded list).
  * @param {string} modelName - The model name from the request
@@ -152,6 +160,8 @@ export default {
     MAX_WAIT_BEFORE_ERROR_MS,
     MIN_SIGNATURE_LENGTH,
     GEMINI_MAX_OUTPUT_TOKENS,
+    GEMINI_SKIP_SIGNATURE,
+    GEMINI_SIGNATURE_CACHE_TTL_MS,
     getModelFamily,
     isThinkingModel,
     OAUTH_CONFIG,

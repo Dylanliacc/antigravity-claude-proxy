@@ -23,6 +23,7 @@ import {
     convertAnthropicToGoogle,
     convertGoogleToAnthropic
 } from './format/index.js';
+import { cacheSignature } from './format/signature-cache.js';
 import { formatDuration, sleep } from './utils/helpers.js';
 import { isRateLimitError, isAuthError } from './errors.js';
 
@@ -848,6 +849,8 @@ async function* streamSSEResponse(response, originalModel) {
                         // Store the signature in the tool_use block for later retrieval
                         if (functionCallSignature && functionCallSignature.length >= MIN_SIGNATURE_LENGTH) {
                             toolUseBlock.thoughtSignature = functionCallSignature;
+                            // Cache for future requests (Claude Code may strip this field)
+                            cacheSignature(toolId, functionCallSignature);
                         }
 
                         yield {

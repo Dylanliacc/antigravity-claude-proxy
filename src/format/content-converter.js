@@ -3,15 +3,8 @@
  * Converts Anthropic message content to Google Generative AI parts format
  */
 
-import { MIN_SIGNATURE_LENGTH } from '../constants.js';
-
-/**
- * Sentinel value to skip thought signature validation for Gemini models.
- * Per Google documentation, this value can be used when Claude Code strips
- * the thoughtSignature field from tool_use blocks in multi-turn requests.
- * See: https://ai.google.dev/gemini-api/docs/thought-signatures
- */
-const GEMINI_SKIP_SIGNATURE = 'skip_thought_signature_validator';
+import { MIN_SIGNATURE_LENGTH, GEMINI_SKIP_SIGNATURE } from '../constants.js';
+import { getCachedSignature } from './signature-cache.js';
 
 /**
  * Convert Anthropic role to Google role
@@ -102,10 +95,17 @@ export function convertContentToParts(content, isClaudeModel = false, isGeminiMo
             // For Gemini models, include thoughtSignature at the part level
             // This is required by Gemini 3+ for tool calls to work correctly
             if (isGeminiModel) {
-                // Use thoughtSignature from the block if Claude Code preserved it
-                // Otherwise, use the sentinel value to skip validation (Claude Code strips non-standard fields)
-                // See: https://ai.google.dev/gemini-api/docs/thought-signatures
-                part.thoughtSignature = block.thoughtSignature || GEMINI_SKIP_SIGNATURE;
+                // Priority: block.thoughtSignature > cache > GEMINI_SKIP_SIGNATURE
+                let signature = block.thoughtSignature;
+
+                if (!signature && block.id) {
+                    signature = getCachedSignature(block.id);
+                    if (signature) {
+                        console.log('[ContentConverter] Restored signature from cache for:', block.id);
+                    }
+                }
+
+                part.thoughtSignature = signature || GEMINI_SKIP_SIGNATURE;
             }
 
             parts.push(part);
