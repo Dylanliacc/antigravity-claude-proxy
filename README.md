@@ -46,14 +46,31 @@ npm install -g antigravity-claude-proxy
 antigravity-claude-proxy start
 ```
 
-### Option 2: Clone Repository
+### Option 2: Clone Repository (Recommended for Developers)
 
 ```bash
 git clone https://github.com/badri-s2001/antigravity-claude-proxy.git
 cd antigravity-claude-proxy
-npm install
-npm start
+chmod +x setup.sh
+./setup.sh
 ```
+
+---
+
+## One-Click Setup (推荐)
+
+如果你是克隆本仓库到本地使用，我们提供了一个全中文的一键配置脚本，可以自动完成依赖安装和账号配置。
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+该脚本将引导你：
+1. 检查 Node.js 环境
+2. 安装项目依赖 (`npm install`)
+3. 通过 OAuth 添加 Google 账号
+4. 提供详细的 Claude Code 配置建议
 
 ---
 
