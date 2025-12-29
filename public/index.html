@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Claude Proxy Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .refresh-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen font-sans">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 text-white p-2 rounded-lg">
+                    <i class="fa-solid fa-server text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-800">Antigravity Proxy</h1>
+                    <p class="text-sm text-slate-500">System Dashboard & Quota Monitor</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="last-updated" class="text-sm text-slate-500">Updated: Never</span>
+                <button onclick="refreshData()" id="refresh-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-sync"></i> Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Status Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- System Status -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fade-in" style="animation-delay: 0ms;">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">System Status</p>
+                        <h3 id="system-status" class="text-2xl font-bold mt-1 text-slate-800">Checking...</h3>
+                    </div>
+                    <div id="status-icon" class="p-2 rounded-lg bg-slate-100 text-slate-400">
+                        <i class="fa-solid fa-heart-pulse"></i>
+                    </div>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+                    <div id="status-bar" class="bg-slate-300 h-1.5 rounded-full" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- Available Accounts -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fade-in" style="animation-delay: 50ms;">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Available Accounts</p>
+                        <h3 id="available-count" class="text-2xl font-bold mt-1 text-slate-800">-</h3>
+                    </div>
+                    <div class="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                        <i class="fa-solid fa-check-circle"></i>
+                    </div>
+                </div>
+                <p id="total-accounts" class="text-xs text-slate-500">out of - total accounts</p>
+            </div>
+
+            <!-- Rate Limited -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fade-in" style="animation-delay: 100ms;">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Rate Limited</p>
+                        <h3 id="ratelimited-count" class="text-2xl font-bold mt-1 text-slate-800">-</h3>
+                    </div>
+                    <div class="p-2 rounded-lg bg-amber-50 text-amber-600">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">Currently on cooldown</p>
+            </div>
+
+            <!-- Invalid/Error -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-fade-in" style="animation-delay: 150ms;">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500">Issues</p>
+                        <h3 id="invalid-count" class="text-2xl font-bold mt-1 text-slate-800">-</h3>
+                    </div>
+                    <div class="p-2 rounded-lg bg-rose-50 text-rose-600">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">Invalid or auth errors</p>
+            </div>
+        </div>
+
+        <!-- Models & Quotas Table -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in mb-8" style="animation-delay: 200ms;">
+            <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h3 class="font-semibold text-slate-800">Account Quotas & Usage</h3>
+                <div class="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">Auto-refresh: 30s</div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 font-medium">Account</th>
+                            <th scope="col" class="px-6 py-3 font-medium">Status</th>
+                            <th scope="col" class="px-6 py-3 font-medium">Last Used</th>
+                            <!-- Dynamic Model Headers will be injected here -->
+                            <th scope="col" class="px-6 py-3 font-medium">Gemini 3 Pro High</th>
+                            <th scope="col" class="px-6 py-3 font-medium">Claude Sonnet 4.5</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accounts-table-body" class="divide-y divide-slate-200">
+                        <!-- Rows will be populated by JS -->
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-slate-500">
+                                <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Loading account data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Usage History Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 animate-fade-in" style="animation-delay: 250ms;">
+            <!-- Usage Chart -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 lg:col-span-2">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="font-semibold text-slate-800">Token Usage History</h3>
+                        <p class="text-sm text-slate-500">Total input and output tokens per model</p>
+                    </div>
+                    <select id="usage-range" onchange="refreshData()" class="text-sm border-slate-200 rounded-lg p-2 bg-slate-50 text-slate-600 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+                <div class="relative h-64 w-full">
+                    <canvas id="usageChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Usage Stats -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 class="font-semibold text-slate-800 mb-4">Usage Summary</h3>
+                <div id="usage-stats-container" class="space-y-4">
+                    <div class="animate-pulse flex space-x-4">
+                        <div class="flex-1 space-y-4 py-1">
+                            <div class="h-4 bg-slate-200 rounded w-3/4"></div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-slate-200 rounded"></div>
+                                <div class="h-4 bg-slate-200 rounded w-5/6"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Requests Log -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in" style="animation-delay: 300ms;">
+            <div class="px-6 py-4 border-b border-slate-200">
+                <h3 class="font-semibold text-slate-800">Recent Requests</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 font-medium">Time</th>
+                            <th scope="col" class="px-6 py-3 font-medium">Model</th>
+                            <th scope="col" class="px-6 py-3 font-medium">Account</th>
+                            <th scope="col" class="px-6 py-3 font-medium text-right">Tokens</th>
+                            <th scope="col" class="px-6 py-3 font-medium">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requests-table-body" class="divide-y divide-slate-200">
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-slate-500">Loading history...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- System Logs / Info Area (Optional) -->
+        <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 class="font-semibold text-slate-800 mb-4">Quick Actions</h3>
+                <div class="flex gap-3">
+                    <button onclick="forceTokenRefresh()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">
+                        Force Token Refresh
+                    </button>
+                    <!-- Add more actions here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const REFRESH_INTERVAL = 30000; // 30 seconds
+        let autoRefreshTimer = null;
+        let usageChart = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshData();
+            autoRefreshTimer = setInterval(refreshData, REFRESH_INTERVAL);
+        });
+
+        async function refreshData() {
+            const refreshBtn = document.getElementById('refresh-btn');
+            const icon = refreshBtn.querySelector('i');
+            const rangeSelect = document.getElementById('usage-range');
+            const range = rangeSelect ? rangeSelect.value : '24h';
+
+            // UI Loading State
+            refreshBtn.disabled = true;
+            refreshBtn.classList.add('opacity-75');
+            icon.classList.add('refresh-spin');
+
+            try {
+                // Fetch Data in Parallel
+                const [healthRes, limitsRes, historyRes] = await Promise.all([
+                    fetch('/health'),
+                    fetch('/account-limits'),
+                    fetch(`/usage-history?range=${range}&limit=20`)
+                ]);
+
+                const healthData = await healthRes.json();
+                const limitsData = await limitsRes.json();
+                const historyData = await historyRes.json();
+
+                updateStatusCards(healthData);
+                renderAccountsTable(limitsData);
+                renderUsageData(historyData);
+
+                document.getElementById('last-updated').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+
+            } catch (error) {
+                console.error('Failed to fetch data:', error);
+                document.getElementById('system-status').textContent = 'Connection Error';
+                document.getElementById('system-status').className = 'text-2xl font-bold mt-1 text-rose-600';
+            } finally {
+                // UI Reset State
+                refreshBtn.disabled = false;
+                refreshBtn.classList.remove('opacity-75');
+                icon.classList.remove('refresh-spin');
+            }
+        }
+
+        function renderUsageData(data) {
+            // 1. Render Chart
+            const ctx = document.getElementById('usageChart').getContext('2d');
+            const stats = data.stats || [];
+
+            // Prepare data for chart
+            const labels = stats.map(s => s.model.replace('gemini-', 'G-').replace('claude-', 'C-'));
+            const inputData = stats.map(s => s.total_input);
+            const outputData = stats.map(s => s.total_output);
+            const cacheData = stats.map(s => s.total_cache_read);
+
+            if (usageChart) {
+                usageChart.destroy();
+            }
+
+            usageChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Cache Read',
+                            data: cacheData,
+                            backgroundColor: '#10b981', // emerald-500
+                            stack: 'Stack 0',
+                        },
+                        {
+                            label: 'Input Tokens',
+                            data: inputData,
+                            backgroundColor: '#6366f1', // indigo-500
+                            stack: 'Stack 0',
+                        },
+                        {
+                            label: 'Output Tokens',
+                            data: outputData,
+                            backgroundColor: '#f59e0b', // amber-500
+                            stack: 'Stack 0',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+
+            // 2. Render Stats Summary
+            const statsContainer = document.getElementById('usage-stats-container');
+            if (stats.length === 0) {
+                statsContainer.innerHTML = '<p class="text-sm text-slate-500">No usage data for this period.</p>';
+            } else {
+                let html = '';
+                let grandTotal = 0;
+
+                stats.forEach(s => {
+                    grandTotal += s.total_all;
+                    html += `
+                        <div class="flex justify-between items-center text-sm border-b border-slate-100 pb-2 last:border-0">
+                            <span class="font-medium text-slate-700 truncate max-w-[150px]" title="${s.model}">
+                                ${s.model.replace('gemini-', 'G-').replace('claude-', 'C-')}
+                            </span>
+                            <div class="text-right">
+                                <div class="font-bold text-slate-800">${s.total_all.toLocaleString()}</div>
+                                <div class="text-xs text-slate-400">${s.request_count} reqs</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // Add Grand Total
+                html = `
+                    <div class="bg-indigo-50 p-3 rounded-lg mb-4">
+                        <div class="text-xs text-indigo-600 font-medium uppercase">Total Tokens</div>
+                        <div class="text-2xl font-bold text-indigo-700">${grandTotal.toLocaleString()}</div>
+                    </div>
+                ` + html;
+
+                statsContainer.innerHTML = html;
+            }
+
+            // 3. Render Request Log
+            const tbody = document.getElementById('requests-table-body');
+            const history = data.history || [];
+
+            if (history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-slate-500">No requests found.</td></tr>';
+            } else {
+                tbody.innerHTML = history.map(req => {
+                    const date = new Date(req.timestamp);
+                    const timeStr = date.toLocaleTimeString();
+                    const dateStr = date.toLocaleDateString();
+
+                    let statusClass = 'text-emerald-600 bg-emerald-50';
+                    if (req.status !== 'success') statusClass = 'text-rose-600 bg-rose-50';
+
+                    return `
+                        <tr class="bg-white hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 whitespace-nowrap text-slate-500">
+                                <div class="text-sm font-medium text-slate-900">${timeStr}</div>
+                                <div class="text-xs text-slate-400">${dateStr}</div>
+                            </td>
+                            <td class="px-6 py-3 whitespace-nowrap">
+                                <div class="text-sm text-slate-700 truncate max-w-[180px]" title="${req.model}">
+                                    ${req.model.replace('gemini-', 'G-').replace('claude-', 'C-')}
+                                </div>
+                            </td>
+                            <td class="px-6 py-3 whitespace-nowrap">
+                                <div class="text-xs text-slate-500 truncate max-w-[150px]">${req.account_email || '-'}</div>
+                            </td>
+                            <td class="px-6 py-3 whitespace-nowrap text-right">
+                                <div class="text-sm font-bold text-slate-700">${(req.total_tokens || 0).toLocaleString()}</div>
+                                <div class="text-xs text-slate-400">
+                                    <span class="text-indigo-500" title="Input">${req.input_tokens}</span> /
+                                    <span class="text-amber-500" title="Output">${req.output_tokens}</span>
+                                    ${req.cache_read_tokens > 0 ? ` / <span class="text-emerald-500" title="Cache Hit">${req.cache_read_tokens}</span>` : ''}
+                                </div>
+                            </td>
+                            <td class="px-6 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusClass}">
+                                    ${req.status}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+
+        function updateStatusCards(data) {
+            // Update counts
+            const parts = data.accounts.split(', ');
+            // Parse "X total, Y available..." string or use direct properties if available (the API returns simple props too)
+
+            // Prefer direct properties if API was updated to return numbers as top-level keys
+            // The current /health endpoint returns: { status, accounts (string), available, rateLimited, invalid }
+
+            document.getElementById('available-count').textContent = data.available ?? '-';
+            document.getElementById('ratelimited-count').textContent = data.rateLimited ?? '-';
+            document.getElementById('invalid-count').textContent = data.invalid ?? '-';
+
+            // Calculate total from parts if needed, or parse the string
+            const totalMatch = data.accounts.match(/(\d+) total/);
+            const total = totalMatch ? totalMatch[1] : '-';
+            document.getElementById('total-accounts').textContent = `out of ${total} total accounts`;
+
+            // System Status Logic
+            const statusEl = document.getElementById('system-status');
+            const iconContainer = document.getElementById('status-icon');
+            const bar = document.getElementById('status-bar');
+
+            if (data.status === 'ok' && data.available > 0) {
+                statusEl.textContent = 'Healthy';
+                statusEl.className = 'text-2xl font-bold mt-1 text-emerald-600';
+                iconContainer.className = 'p-2 rounded-lg bg-emerald-50 text-emerald-600';
+                bar.className = 'h-1.5 rounded-full bg-emerald-500';
+            } else if (data.available === 0 && data.rateLimited > 0) {
+                statusEl.textContent = 'Rate Limited';
+                statusEl.className = 'text-2xl font-bold mt-1 text-amber-600';
+                iconContainer.className = 'p-2 rounded-lg bg-amber-50 text-amber-600';
+                bar.className = 'h-1.5 rounded-full bg-amber-500';
+            } else {
+                statusEl.textContent = 'Degraded';
+                statusEl.className = 'text-2xl font-bold mt-1 text-rose-600';
+                iconContainer.className = 'p-2 rounded-lg bg-rose-50 text-rose-600';
+                bar.className = 'h-1.5 rounded-full bg-rose-500';
+            }
+        }
+
+        function renderAccountsTable(data) {
+            const tbody = document.getElementById('accounts-table-body');
+            const theadRow = document.querySelector('thead tr');
+
+            // 1. Determine all unique models present in the data to build columns
+            // The API returns `models: [...]` array of model IDs.
+            const models = data.models || [];
+
+            // Update Header
+            // Reset to base columns
+            theadRow.innerHTML = `
+                <th scope="col" class="px-6 py-3 font-medium">Account</th>
+                <th scope="col" class="px-6 py-3 font-medium">Status</th>
+                <th scope="col" class="px-6 py-3 font-medium">Last Used</th>
+            `;
+
+            // Add dynamic model columns
+            models.forEach(model => {
+                // Shorten model names for display
+                let displayName = model.replace('gemini-', 'G-').replace('claude-', 'C-');
+                // further clean up
+                displayName = displayName.replace('-thinking', '').replace('-20251101', '');
+
+                const th = document.createElement('th');
+                th.scope = 'col';
+                th.className = 'px-6 py-3 font-medium';
+                th.textContent = displayName;
+                th.title = model; // Tooltip full name
+                theadRow.appendChild(th);
+            });
+
+            // 2. Build Rows
+            tbody.innerHTML = '';
+
+            if (data.accounts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${3 + models.length}" class="px-6 py-4 text-center text-slate-500">No accounts found.</td></tr>`;
+                return;
+            }
+
+            data.accounts.forEach(acc => {
+                const tr = document.createElement('tr');
+                tr.className = 'bg-white hover:bg-slate-50 transition-colors';
+
+                // Status Badge logic
+                let statusBadge = '';
+                if (acc.status === 'ok') {
+                    statusBadge = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Active</span>`;
+                } else if (acc.status === 'invalid') {
+                    statusBadge = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">Invalid</span>`;
+                } else { // rate-limited or other
+                    statusBadge = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">${acc.status}</span>`;
+                }
+
+                // Base Info
+                let html = `
+                    <td class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-regular fa-user text-slate-400"></i>
+                            ${acc.email}
+                        </div>
+                        ${acc.error ? `<div class="text-xs text-rose-500 mt-1 truncate max-w-[200px]" title="${acc.error}">${acc.error}</div>` : ''}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
+                    <td class="px-6 py-4 text-slate-500 whitespace-nowrap text-xs">
+                        ${acc.lastUsed ? new Date(acc.lastUsed).toLocaleTimeString() : 'Never'}
+                    </td>
+                `;
+
+                // Model Quotas
+                models.forEach(modelId => {
+                    const limit = acc.limits[modelId];
+                    let cellContent = '<span class="text-slate-400">-</span>';
+
+                    if (limit) {
+                        // Determine color based on remaining %
+                        // API returns "remaining": "45%" string or null
+                        // It also returns "remainingFraction": 0.45 number
+
+                        const fraction = limit.remainingFraction;
+                        let colorClass = 'text-emerald-600';
+                        let bgClass = 'bg-emerald-500';
+
+                        if (fraction === null) {
+                             // Likely unlimited or error
+                             cellContent = `<span class="text-slate-500 text-xs">Unknown</span>`;
+                        } else {
+                            if (fraction < 0.1) { colorClass = 'text-rose-600'; bgClass = 'bg-rose-500'; }
+                            else if (fraction < 0.3) { colorClass = 'text-amber-600'; bgClass = 'bg-amber-500'; }
+
+                            // Progress bar + text
+                            cellContent = `
+                                <div class="w-full max-w-[100px]">
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="font-medium ${colorClass}">${Math.round(fraction * 100)}%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-1.5">
+                                        <div class="${bgClass} h-1.5 rounded-full" style="width: ${Math.round(fraction * 100)}%"></div>
+                                    </div>
+                                    ${limit.resetTime ? `<div class="text-[10px] text-slate-400 mt-1">Resets: ${new Date(limit.resetTime).toLocaleTimeString()}</div>` : ''}
+                                </div>
+                            `;
+                        }
+                    }
+
+                    html += `<td class="px-6 py-4">${cellContent}</td>`;
+                });
+
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function forceTokenRefresh() {
+            if (!confirm('Are you sure you want to force a refresh of all account tokens? This may take a few moments.')) return;
+
+            try {
+                const res = await fetch('/refresh-token', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    alert('Tokens refreshed successfully!');
+                    refreshData();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('Network error while refreshing tokens');
+            }
+        }
+    </script>
+</body>
+</html>
