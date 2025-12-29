@@ -3,7 +3,7 @@
  * Handles thinking block processing, validation, and filtering
  */
 
-import { MIN_SIGNATURE_LENGTH } from '../constants.js';
+import { MIN_SIGNATURE_LENGTH } from "../constants.js";
 
 /**
  * Check if a part is a thinking block
@@ -11,41 +11,47 @@ import { MIN_SIGNATURE_LENGTH } from '../constants.js';
  * @returns {boolean} True if the part is a thinking block
  */
 export function isThinkingPart(part) {
-    return part.type === 'thinking' ||
-        part.type === 'redacted_thinking' ||
-        part.thinking !== undefined ||
-        part.thought === true;
+  return (
+    part.type === "thinking" ||
+    part.type === "redacted_thinking" ||
+    part.thinking !== undefined ||
+    part.thought === true
+  );
 }
 
 /**
  * Check if a thinking part has a valid signature (>= MIN_SIGNATURE_LENGTH chars)
  */
 export function hasValidSignature(part) {
-    const signature = part.thought === true ? part.thoughtSignature : part.signature;
-    return typeof signature === 'string' && signature.length >= MIN_SIGNATURE_LENGTH;
+  const signature =
+    part.thought === true ? part.thoughtSignature : part.signature;
+  return (
+    typeof signature === "string" && signature.length >= MIN_SIGNATURE_LENGTH
+  );
 }
 
 /**
  * Sanitize a thinking part by keeping only allowed fields
  */
 export function sanitizeThinkingPart(part) {
-    // Gemini-style thought blocks: { thought: true, text, thoughtSignature }
-    if (part.thought === true) {
-        const sanitized = { thought: true };
-        if (part.text !== undefined) sanitized.text = part.text;
-        if (part.thoughtSignature !== undefined) sanitized.thoughtSignature = part.thoughtSignature;
-        return sanitized;
-    }
+  // Gemini-style thought blocks: { thought: true, text, thoughtSignature }
+  if (part.thought === true) {
+    const sanitized = { thought: true };
+    if (part.text !== undefined) sanitized.text = part.text;
+    if (part.thoughtSignature !== undefined)
+      sanitized.thoughtSignature = part.thoughtSignature;
+    return sanitized;
+  }
 
-    // Anthropic-style thinking blocks: { type: "thinking", thinking, signature }
-    if (part.type === 'thinking' || part.thinking !== undefined) {
-        const sanitized = { type: 'thinking' };
-        if (part.thinking !== undefined) sanitized.thinking = part.thinking;
-        if (part.signature !== undefined) sanitized.signature = part.signature;
-        return sanitized;
-    }
+  // Anthropic-style thinking blocks: { type: "thinking", thinking, signature }
+  if (part.type === "thinking" || part.thinking !== undefined) {
+    const sanitized = { type: "thinking" };
+    if (part.thinking !== undefined) sanitized.thinking = part.thinking;
+    if (part.signature !== undefined) sanitized.signature = part.signature;
+    return sanitized;
+  }
 
-    return part;
+  return part;
 }
 
 /**
@@ -53,52 +59,52 @@ export function sanitizeThinkingPart(part) {
  * Only keeps: type, thinking, signature (for thinking) or type, data (for redacted_thinking)
  */
 export function sanitizeAnthropicThinkingBlock(block) {
-    if (!block) return block;
+  if (!block) return block;
 
-    if (block.type === 'thinking') {
-        const sanitized = { type: 'thinking' };
-        if (block.thinking !== undefined) sanitized.thinking = block.thinking;
-        if (block.signature !== undefined) sanitized.signature = block.signature;
-        return sanitized;
-    }
+  if (block.type === "thinking") {
+    const sanitized = { type: "thinking" };
+    if (block.thinking !== undefined) sanitized.thinking = block.thinking;
+    if (block.signature !== undefined) sanitized.signature = block.signature;
+    return sanitized;
+  }
 
-    if (block.type === 'redacted_thinking') {
-        const sanitized = { type: 'redacted_thinking' };
-        if (block.data !== undefined) sanitized.data = block.data;
-        return sanitized;
-    }
+  if (block.type === "redacted_thinking") {
+    const sanitized = { type: "redacted_thinking" };
+    if (block.data !== undefined) sanitized.data = block.data;
+    return sanitized;
+  }
 
-    return block;
+  return block;
 }
 
 /**
  * Filter content array, keeping only thinking blocks with valid signatures.
  */
 function filterContentArray(contentArray) {
-    const filtered = [];
+  const filtered = [];
 
-    for (const item of contentArray) {
-        if (!item || typeof item !== 'object') {
-            filtered.push(item);
-            continue;
-        }
-
-        if (!isThinkingPart(item)) {
-            filtered.push(item);
-            continue;
-        }
-
-        // Keep items with valid signatures
-        if (hasValidSignature(item)) {
-            filtered.push(sanitizeThinkingPart(item));
-            continue;
-        }
-
-        // Drop unsigned thinking blocks
-        console.log('[ThinkingUtils] Dropping unsigned thinking block');
+  for (const item of contentArray) {
+    if (!item || typeof item !== "object") {
+      filtered.push(item);
+      continue;
     }
 
-    return filtered;
+    if (!isThinkingPart(item)) {
+      filtered.push(item);
+      continue;
+    }
+
+    // Keep items with valid signatures
+    if (hasValidSignature(item)) {
+      filtered.push(sanitizeThinkingPart(item));
+      continue;
+    }
+
+    // Drop unsigned thinking blocks
+    console.log("[ThinkingUtils] Dropping unsigned thinking block");
+  }
+
+  return filtered;
 }
 
 /**
@@ -108,15 +114,15 @@ function filterContentArray(contentArray) {
  * @returns {Array<{role: string, parts: Array}>} Filtered contents with unsigned thinking blocks removed
  */
 export function filterUnsignedThinkingBlocks(contents) {
-    return contents.map(content => {
-        if (!content || typeof content !== 'object') return content;
+  return contents.map((content) => {
+    if (!content || typeof content !== "object") return content;
 
-        if (Array.isArray(content.parts)) {
-            return { ...content, parts: filterContentArray(content.parts) };
-        }
+    if (Array.isArray(content.parts)) {
+      return { ...content, parts: filterContentArray(content.parts) };
+    }
 
-        return content;
-    });
+    return content;
+  });
 }
 
 /**
@@ -127,36 +133,40 @@ export function filterUnsignedThinkingBlocks(contents) {
  * @returns {Array<Object>} Content array with trailing unsigned thinking blocks removed
  */
 export function removeTrailingThinkingBlocks(content) {
-    if (!Array.isArray(content)) return content;
-    if (content.length === 0) return content;
+  if (!Array.isArray(content)) return content;
+  if (content.length === 0) return content;
 
-    // Work backwards from the end, removing thinking blocks
-    let endIndex = content.length;
-    for (let i = content.length - 1; i >= 0; i--) {
-        const block = content[i];
-        if (!block || typeof block !== 'object') break;
+  // Work backwards from the end, removing thinking blocks
+  let endIndex = content.length;
+  for (let i = content.length - 1; i >= 0; i--) {
+    const block = content[i];
+    if (!block || typeof block !== "object") break;
 
-        // Check if it's a thinking block (any format)
-        const isThinking = isThinkingPart(block);
+    // Check if it's a thinking block (any format)
+    const isThinking = isThinkingPart(block);
 
-        if (isThinking) {
-            // Check if it has a valid signature
-            if (!hasValidSignature(block)) {
-                endIndex = i;
-            } else {
-                break; // Stop at signed thinking block
-            }
-        } else {
-            break; // Stop at first non-thinking block
-        }
+    if (isThinking) {
+      // Check if it has a valid signature
+      if (!hasValidSignature(block)) {
+        endIndex = i;
+      } else {
+        break; // Stop at signed thinking block
+      }
+    } else {
+      break; // Stop at first non-thinking block
     }
+  }
 
-    if (endIndex < content.length) {
-        console.log('[ThinkingUtils] Removed', content.length - endIndex, 'trailing unsigned thinking blocks');
-        return content.slice(0, endIndex);
-    }
+  if (endIndex < content.length) {
+    console.log(
+      "[ThinkingUtils] Removed",
+      content.length - endIndex,
+      "trailing unsigned thinking blocks",
+    );
+    return content.slice(0, endIndex);
+  }
 
-    return content;
+  return content;
 }
 
 /**
@@ -168,29 +178,45 @@ export function removeTrailingThinkingBlocks(content) {
  * @returns {Array<Object>} Filtered content with only valid signed thinking blocks
  */
 export function restoreThinkingSignatures(content) {
-    if (!Array.isArray(content)) return content;
+  if (!Array.isArray(content)) return content;
 
-    const originalLength = content.length;
-    const filtered = [];
+  const originalLength = content.length;
+  const filtered = [];
 
-    for (const block of content) {
-        if (!block || block.type !== 'thinking') {
-            filtered.push(block);
-            continue;
-        }
+  for (const block of content) {
+    if (!block) continue;
 
-        // Keep blocks with valid signatures (>= MIN_SIGNATURE_LENGTH chars), sanitized
-        if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH) {
-            filtered.push(sanitizeAnthropicThinkingBlock(block));
-        }
-        // Unsigned thinking blocks are dropped
+    // For thinking blocks: only keep blocks with valid signatures, sanitized
+    if (block.type === "thinking") {
+      if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH) {
+        filtered.push(sanitizeAnthropicThinkingBlock(block));
+      }
+      // Unsigned thinking blocks are dropped
+      continue;
     }
 
-    if (filtered.length < originalLength) {
-        console.log(`[ThinkingUtils] Dropped ${originalLength - filtered.length} unsigned thinking block(s)`);
+    // For redacted_thinking blocks: sanitize to remove cache_control
+    if (block.type === "redacted_thinking") {
+      filtered.push(sanitizeAnthropicThinkingBlock(block));
+      continue;
     }
 
-    return filtered;
+    // For all other blocks: remove cache_control if present
+    if (block.cache_control !== undefined) {
+      const { cache_control, ...rest } = block;
+      filtered.push(rest);
+    } else {
+      filtered.push(block);
+    }
+  }
+
+  if (filtered.length < originalLength) {
+    console.log(
+      `[ThinkingUtils] Dropped ${originalLength - filtered.length} unsigned thinking block(s)`,
+    );
+  }
+
+  return filtered;
 }
 
 /**
@@ -199,63 +225,77 @@ export function restoreThinkingSignatures(content) {
  * 2. Text blocks come in the middle (filtering out empty/useless ones)
  * 3. Tool_use blocks come at the end (required before tool_result)
  *
+ * Also removes cache_control from all block types.
+ *
  * @param {Array<Object>} content - Array of content blocks
  * @returns {Array<Object>} Reordered content array
  */
 export function reorderAssistantContent(content) {
-    if (!Array.isArray(content)) return content;
+  if (!Array.isArray(content)) return content;
 
-    // Even for single-element arrays, we need to sanitize thinking blocks
-    if (content.length === 1) {
-        const block = content[0];
-        if (block && (block.type === 'thinking' || block.type === 'redacted_thinking')) {
-            return [sanitizeAnthropicThinkingBlock(block)];
-        }
-        return content;
+  // Helper to remove cache_control from a block
+  const removeCacheControl = (block) => {
+    if (!block || block.cache_control === undefined) return block;
+    const { cache_control, ...rest } = block;
+    return rest;
+  };
+
+  // Even for single-element arrays, we need to sanitize thinking blocks
+  if (content.length === 1) {
+    const block = content[0];
+    if (
+      block &&
+      (block.type === "thinking" || block.type === "redacted_thinking")
+    ) {
+      return [sanitizeAnthropicThinkingBlock(block)];
     }
+    return [removeCacheControl(block)];
+  }
 
-    const thinkingBlocks = [];
-    const textBlocks = [];
-    const toolUseBlocks = [];
-    let droppedEmptyBlocks = 0;
+  const thinkingBlocks = [];
+  const textBlocks = [];
+  const toolUseBlocks = [];
+  let droppedEmptyBlocks = 0;
 
-    for (const block of content) {
-        if (!block) continue;
+  for (const block of content) {
+    if (!block) continue;
 
-        if (block.type === 'thinking' || block.type === 'redacted_thinking') {
-            // Sanitize thinking blocks to remove cache_control and other extra fields
-            thinkingBlocks.push(sanitizeAnthropicThinkingBlock(block));
-        } else if (block.type === 'tool_use') {
-            toolUseBlocks.push(block);
-        } else if (block.type === 'text') {
-            // Only keep text blocks with meaningful content
-            if (block.text && block.text.trim().length > 0) {
-                textBlocks.push(block);
-            } else {
-                droppedEmptyBlocks++;
-            }
-        } else {
-            // Other block types go in the text position
-            textBlocks.push(block);
-        }
+    if (block.type === "thinking" || block.type === "redacted_thinking") {
+      // Sanitize thinking blocks to remove cache_control and other extra fields
+      thinkingBlocks.push(sanitizeAnthropicThinkingBlock(block));
+    } else if (block.type === "tool_use") {
+      toolUseBlocks.push(removeCacheControl(block));
+    } else if (block.type === "text") {
+      // Only keep text blocks with meaningful content
+      if (block.text && block.text.trim().length > 0) {
+        textBlocks.push(removeCacheControl(block));
+      } else {
+        droppedEmptyBlocks++;
+      }
+    } else {
+      // Other block types go in the text position
+      textBlocks.push(removeCacheControl(block));
     }
+  }
 
-    if (droppedEmptyBlocks > 0) {
-        console.log(`[ThinkingUtils] Dropped ${droppedEmptyBlocks} empty text block(s)`);
+  if (droppedEmptyBlocks > 0) {
+    console.log(
+      `[ThinkingUtils] Dropped ${droppedEmptyBlocks} empty text block(s)`,
+    );
+  }
+
+  const reordered = [...thinkingBlocks, ...textBlocks, ...toolUseBlocks];
+
+  // Log only if actual reordering happened (not just filtering)
+  if (reordered.length === content.length) {
+    const originalOrder = content.map((b) => b?.type || "unknown").join(",");
+    const newOrder = reordered.map((b) => b?.type || "unknown").join(",");
+    if (originalOrder !== newOrder) {
+      console.log("[ThinkingUtils] Reordered assistant content");
     }
+  }
 
-    const reordered = [...thinkingBlocks, ...textBlocks, ...toolUseBlocks];
-
-    // Log only if actual reordering happened (not just filtering)
-    if (reordered.length === content.length) {
-        const originalOrder = content.map(b => b?.type || 'unknown').join(',');
-        const newOrder = reordered.map(b => b?.type || 'unknown').join(',');
-        if (originalOrder !== newOrder) {
-            console.log('[ThinkingUtils] Reordered assistant content');
-        }
-    }
-
-    return reordered;
+  return reordered;
 }
 
 // ============================================================================
@@ -271,16 +311,21 @@ export function reorderAssistantContent(content) {
  * @returns {boolean} True if message has valid signed thinking blocks
  */
 function messageHasValidThinking(message) {
-    const content = message.content || message.parts || [];
-    if (!Array.isArray(content)) return false;
-    return content.some(block => {
-        if (!isThinkingPart(block)) return false;
-        // Check for valid signature (Anthropic style)
-        if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH) return true;
-        // Check for thoughtSignature (Gemini style on functionCall)
-        if (block.thoughtSignature && block.thoughtSignature.length >= MIN_SIGNATURE_LENGTH) return true;
-        return false;
-    });
+  const content = message.content || message.parts || [];
+  if (!Array.isArray(content)) return false;
+  return content.some((block) => {
+    if (!isThinkingPart(block)) return false;
+    // Check for valid signature (Anthropic style)
+    if (block.signature && block.signature.length >= MIN_SIGNATURE_LENGTH)
+      return true;
+    // Check for thoughtSignature (Gemini style on functionCall)
+    if (
+      block.thoughtSignature &&
+      block.thoughtSignature.length >= MIN_SIGNATURE_LENGTH
+    )
+      return true;
+    return false;
+  });
 }
 
 /**
@@ -289,11 +334,11 @@ function messageHasValidThinking(message) {
  * @returns {boolean} True if message has tool_use blocks
  */
 function messageHasToolUse(message) {
-    const content = message.content || message.parts || [];
-    if (!Array.isArray(content)) return false;
-    return content.some(block =>
-        block.type === 'tool_use' || block.functionCall
-    );
+  const content = message.content || message.parts || [];
+  if (!Array.isArray(content)) return false;
+  return content.some(
+    (block) => block.type === "tool_use" || block.functionCall,
+  );
 }
 
 /**
@@ -302,11 +347,11 @@ function messageHasToolUse(message) {
  * @returns {boolean} True if message has tool_result blocks
  */
 function messageHasToolResult(message) {
-    const content = message.content || message.parts || [];
-    if (!Array.isArray(content)) return false;
-    return content.some(block =>
-        block.type === 'tool_result' || block.functionResponse
-    );
+  const content = message.content || message.parts || [];
+  if (!Array.isArray(content)) return false;
+  return content.some(
+    (block) => block.type === "tool_result" || block.functionResponse,
+  );
 }
 
 /**
@@ -315,13 +360,13 @@ function messageHasToolResult(message) {
  * @returns {boolean} True if message is plain user text
  */
 function isPlainUserMessage(message) {
-    if (message.role !== 'user') return false;
-    const content = message.content || message.parts || [];
-    if (!Array.isArray(content)) return typeof content === 'string';
-    // Check if it has tool_result blocks
-    return !content.some(block =>
-        block.type === 'tool_result' || block.functionResponse
-    );
+  if (message.role !== "user") return false;
+  const content = message.content || message.parts || [];
+  if (!Array.isArray(content)) return typeof content === "string";
+  // Check if it has tool_result blocks
+  return !content.some(
+    (block) => block.type === "tool_result" || block.functionResponse,
+  );
 }
 
 /**
@@ -334,53 +379,64 @@ function isPlainUserMessage(message) {
  * @returns {Object} State object with inToolLoop, interruptedTool, turnHasThinking, etc.
  */
 export function analyzeConversationState(messages) {
-    if (!Array.isArray(messages) || messages.length === 0) {
-        return { inToolLoop: false, interruptedTool: false, turnHasThinking: false, toolResultCount: 0 };
-    }
-
-    // Find the last assistant message
-    let lastAssistantIdx = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].role === 'assistant' || messages[i].role === 'model') {
-            lastAssistantIdx = i;
-            break;
-        }
-    }
-
-    if (lastAssistantIdx === -1) {
-        return { inToolLoop: false, interruptedTool: false, turnHasThinking: false, toolResultCount: 0 };
-    }
-
-    const lastAssistant = messages[lastAssistantIdx];
-    const hasToolUse = messageHasToolUse(lastAssistant);
-    const hasThinking = messageHasValidThinking(lastAssistant);
-
-    // Count trailing tool results after the assistant message
-    let toolResultCount = 0;
-    let hasPlainUserMessageAfter = false;
-    for (let i = lastAssistantIdx + 1; i < messages.length; i++) {
-        if (messageHasToolResult(messages[i])) {
-            toolResultCount++;
-        }
-        if (isPlainUserMessage(messages[i])) {
-            hasPlainUserMessageAfter = true;
-        }
-    }
-
-    // We're in a tool loop if: assistant has tool_use AND there are tool_results after
-    const inToolLoop = hasToolUse && toolResultCount > 0;
-
-    // We have an interrupted tool if: assistant has tool_use, NO tool_results,
-    // but there IS a plain user message after (user interrupted and sent new message)
-    const interruptedTool = hasToolUse && toolResultCount === 0 && hasPlainUserMessageAfter;
-
+  if (!Array.isArray(messages) || messages.length === 0) {
     return {
-        inToolLoop,
-        interruptedTool,
-        turnHasThinking: hasThinking,
-        toolResultCount,
-        lastAssistantIdx
+      inToolLoop: false,
+      interruptedTool: false,
+      turnHasThinking: false,
+      toolResultCount: 0,
     };
+  }
+
+  // Find the last assistant message
+  let lastAssistantIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "assistant" || messages[i].role === "model") {
+      lastAssistantIdx = i;
+      break;
+    }
+  }
+
+  if (lastAssistantIdx === -1) {
+    return {
+      inToolLoop: false,
+      interruptedTool: false,
+      turnHasThinking: false,
+      toolResultCount: 0,
+    };
+  }
+
+  const lastAssistant = messages[lastAssistantIdx];
+  const hasToolUse = messageHasToolUse(lastAssistant);
+  const hasThinking = messageHasValidThinking(lastAssistant);
+
+  // Count trailing tool results after the assistant message
+  let toolResultCount = 0;
+  let hasPlainUserMessageAfter = false;
+  for (let i = lastAssistantIdx + 1; i < messages.length; i++) {
+    if (messageHasToolResult(messages[i])) {
+      toolResultCount++;
+    }
+    if (isPlainUserMessage(messages[i])) {
+      hasPlainUserMessageAfter = true;
+    }
+  }
+
+  // We're in a tool loop if: assistant has tool_use AND there are tool_results after
+  const inToolLoop = hasToolUse && toolResultCount > 0;
+
+  // We have an interrupted tool if: assistant has tool_use, NO tool_results,
+  // but there IS a plain user message after (user interrupted and sent new message)
+  const interruptedTool =
+    hasToolUse && toolResultCount === 0 && hasPlainUserMessageAfter;
+
+  return {
+    inToolLoop,
+    interruptedTool,
+    turnHasThinking: hasThinking,
+    toolResultCount,
+    lastAssistantIdx,
+  };
 }
 
 /**
@@ -393,9 +449,9 @@ export function analyzeConversationState(messages) {
  * @returns {boolean} True if thinking recovery is needed
  */
 export function needsThinkingRecovery(messages) {
-    const state = analyzeConversationState(messages);
-    // Need recovery if (tool loop OR interrupted tool) AND no thinking
-    return (state.inToolLoop || state.interruptedTool) && !state.turnHasThinking;
+  const state = analyzeConversationState(messages);
+  // Need recovery if (tool loop OR interrupted tool) AND no thinking
+  return (state.inToolLoop || state.interruptedTool) && !state.turnHasThinking;
 }
 
 /**
@@ -406,19 +462,22 @@ export function needsThinkingRecovery(messages) {
  * @returns {Array<Object>} Messages with all thinking blocks removed
  */
 function stripAllThinkingBlocks(messages) {
-    return messages.map(msg => {
-        const content = msg.content || msg.parts;
-        if (!Array.isArray(content)) return msg;
+  return messages.map((msg) => {
+    const content = msg.content || msg.parts;
+    if (!Array.isArray(content)) return msg;
 
-        const filtered = content.filter(block => !isThinkingPart(block));
+    const filtered = content.filter((block) => !isThinkingPart(block));
 
-        if (msg.content) {
-            return { ...msg, content: filtered.length > 0 ? filtered : [{ type: 'text', text: '' }] };
-        } else if (msg.parts) {
-            return { ...msg, parts: filtered.length > 0 ? filtered : [{ text: '' }] };
-        }
-        return msg;
-    });
+    if (msg.content) {
+      return {
+        ...msg,
+        content: filtered.length > 0 ? filtered : [{ type: "text", text: "" }],
+      };
+    } else if (msg.parts) {
+      return { ...msg, parts: filtered.length > 0 ? filtered : [{ text: "" }] };
+    }
+    return msg;
+  });
 }
 
 /**
@@ -434,48 +493,51 @@ function stripAllThinkingBlocks(messages) {
  * @returns {Array<Object>} Modified messages with synthetic messages injected
  */
 export function closeToolLoopForThinking(messages) {
-    const state = analyzeConversationState(messages);
+  const state = analyzeConversationState(messages);
 
-    // Handle neither tool loop nor interrupted tool
-    if (!state.inToolLoop && !state.interruptedTool) return messages;
+  // Handle neither tool loop nor interrupted tool
+  if (!state.inToolLoop && !state.interruptedTool) return messages;
 
-    // Strip all thinking blocks
-    let modified = stripAllThinkingBlocks(messages);
+  // Strip all thinking blocks
+  let modified = stripAllThinkingBlocks(messages);
 
-    if (state.interruptedTool) {
-        // For interrupted tools: just strip thinking and add a synthetic assistant message
-        // to acknowledge the interruption before the user's new message
+  if (state.interruptedTool) {
+    // For interrupted tools: just strip thinking and add a synthetic assistant message
+    // to acknowledge the interruption before the user's new message
 
-        // Find where to insert the synthetic message (before the plain user message)
-        const insertIdx = state.lastAssistantIdx + 1;
+    // Find where to insert the synthetic message (before the plain user message)
+    const insertIdx = state.lastAssistantIdx + 1;
 
-        // Insert synthetic assistant message acknowledging interruption
-        modified.splice(insertIdx, 0, {
-            role: 'assistant',
-            content: [{ type: 'text', text: '[Tool call was interrupted.]' }]
-        });
+    // Insert synthetic assistant message acknowledging interruption
+    modified.splice(insertIdx, 0, {
+      role: "assistant",
+      content: [{ type: "text", text: "[Tool call was interrupted.]" }],
+    });
 
-        console.log('[ThinkingUtils] Applied thinking recovery for interrupted tool');
-    } else {
-        // For tool loops: add synthetic messages to close the loop
-        const syntheticText = state.toolResultCount === 1
-            ? '[Tool execution completed.]'
-            : `[${state.toolResultCount} tool executions completed.]`;
+    console.log(
+      "[ThinkingUtils] Applied thinking recovery for interrupted tool",
+    );
+  } else {
+    // For tool loops: add synthetic messages to close the loop
+    const syntheticText =
+      state.toolResultCount === 1
+        ? "[Tool execution completed.]"
+        : `[${state.toolResultCount} tool executions completed.]`;
 
-        // Inject synthetic model message to complete the turn
-        modified.push({
-            role: 'assistant',
-            content: [{ type: 'text', text: syntheticText }]
-        });
+    // Inject synthetic model message to complete the turn
+    modified.push({
+      role: "assistant",
+      content: [{ type: "text", text: syntheticText }],
+    });
 
-        // Inject synthetic user message to start fresh
-        modified.push({
-            role: 'user',
-            content: [{ type: 'text', text: '[Continue]' }]
-        });
+    // Inject synthetic user message to start fresh
+    modified.push({
+      role: "user",
+      content: [{ type: "text", text: "[Continue]" }],
+    });
 
-        console.log('[ThinkingUtils] Applied thinking recovery for tool loop');
-    }
+    console.log("[ThinkingUtils] Applied thinking recovery for tool loop");
+  }
 
-    return modified;
+  return modified;
 }

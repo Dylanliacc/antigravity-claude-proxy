@@ -23,6 +23,8 @@ app.listen(PORT, () => {
 ║    GET  /account-limits - Account status & quotas              ║
 ║    POST /refresh-token - Force token refresh                 ║
 ║                                                              ║
+║  Dashboard: http://localhost:${PORT}/                          ║
+║                                                              ║
 ║  Usage with Claude Code:                                     ║
 ║    export ANTHROPIC_BASE_URL=http://localhost:${PORT}          ║
 ║    export ANTHROPIC_API_KEY=dummy                            ║

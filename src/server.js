@@ -6,13 +6,19 @@
 
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { sendMessage, sendMessageStream, listModels, getModelQuotas } from './cloudcode-client.js';
 import { forceRefresh } from './token-extractor.js';
 import { REQUEST_BODY_LIMIT } from './constants.js';
 import { AccountManager } from './account-manager.js';
+import { usageTracker } from './usage-tracker.js';
 import { formatDuration } from './utils/helpers.js';
 
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize account manager (will be fully initialized on first request or startup)
 const accountManager = new AccountManager();
@@ -51,6 +57,7 @@ async function ensureInitialized() {
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+app.use(express.static(path.join(__dirname, '../public')));
 
 /**
  * Parse error message to extract error type, status code, and user-friendly message
@@ -340,6 +347,33 @@ app.post('/refresh-token', async (req, res) => {
             status: 'ok',
             message: 'Token caches cleared and refreshed',
             tokenPrefix: token.substring(0, 10) + '...'
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Usage stats endpoint
+ * Returns usage statistics and history
+ */
+app.get('/usage-history', async (req, res) => {
+    try {
+        const timeRange = req.query.range || '24h';
+        const limit = parseInt(req.query.limit || '50');
+
+        const [history, stats] = await Promise.all([
+            usageTracker.getHistory(limit),
+            usageTracker.getStats(timeRange)
+        ]);
+
+        res.json({
+            range: timeRange,
+            stats,
+            history
         });
     } catch (error) {
         res.status(500).json({
