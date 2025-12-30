@@ -7,7 +7,7 @@ async function testGemini() {
       "x-api-key": "dummy",
     },
     body: JSON.stringify({
-      model: "gemini-3-flash",
+      model: "claude-gemini-3-flash",
       messages: [{ role: "user", content: "Hello" }],
       max_tokens: 100,
       stream: false,

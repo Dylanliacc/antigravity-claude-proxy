@@ -16,6 +16,7 @@ import {
   MAX_RETRIES,
   MAX_WAIT_BEFORE_ERROR_MS,
   MIN_SIGNATURE_LENGTH,
+  SUPPORTED_GEMINI_MODELS,
   getModelFamily,
   isThinkingModel,
 } from "./constants.js";
@@ -434,14 +435,17 @@ export async function sendMessage(anthropicRequest, accountManager) {
           // Non-thinking models use regular JSON
           const data = await response.json();
           console.log("[CloudCode] Response received");
-          const anthropicResponse = convertGoogleToAnthropic(data, anthropicRequest.model);
+          const anthropicResponse = convertGoogleToAnthropic(
+            data,
+            anthropicRequest.model,
+          );
 
           // Log usage
           usageTracker.logRequest({
             model: anthropicRequest.model,
             accountEmail: account.email,
             usage: anthropicResponse.usage || {},
-            status: 'success'
+            status: "success",
           });
 
           return anthropicResponse;
@@ -727,7 +731,11 @@ export async function* sendMessageStream(anthropicRequest, accountManager) {
           }
 
           // Stream the response - yield events as they arrive
-          yield* streamSSEResponse(response, anthropicRequest.model, account.email);
+          yield* streamSSEResponse(
+            response,
+            anthropicRequest.model,
+            account.email,
+          );
 
           console.log("[CloudCode] Stream completed");
           return;
@@ -1084,12 +1092,12 @@ async function* streamSSEResponse(response, originalModel, accountEmail) {
     model: originalModel,
     accountEmail: accountEmail,
     usage: {
-        input_tokens: inputTokens - cacheReadTokens,
-        output_tokens: outputTokens,
-        cache_read_input_tokens: cacheReadTokens,
-        cache_creation_input_tokens: 0
+      input_tokens: inputTokens - cacheReadTokens,
+      output_tokens: outputTokens,
+      cache_read_input_tokens: cacheReadTokens,
+      cache_creation_input_tokens: 0,
     },
-    status: 'success'
+    status: "success",
   });
 
   yield { type: "message_stop" };
@@ -1108,13 +1116,19 @@ export async function listModels(token) {
     return { object: "list", data: [] };
   }
 
-  const modelList = Object.entries(data.models).map(([modelId, modelData]) => ({
-    id: modelId,
-    object: "model",
-    created: Math.floor(Date.now() / 1000),
-    owned_by: "anthropic",
-    description: modelData.displayName || modelId,
-  }));
+  const modelList = Object.entries(data.models).map(([modelId, modelData]) => {
+    // Prefix Gemini models with 'claude-' to make them visible in Claude Code
+    const isGemini = modelId.startsWith("gemini");
+    const id = isGemini ? `claude-${modelId}` : modelId;
+
+    return {
+      id: id,
+      object: "model",
+      created: Math.floor(Date.now() / 1000),
+      owned_by: "anthropic",
+      description: modelData.displayName || modelId,
+    };
+  });
 
   return {
     object: "list",
