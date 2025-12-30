@@ -27,6 +27,8 @@ import {
 
 const app = express();
 
+const FALLBACK_MODEL = "claude-gemini-2.5-flash";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -610,7 +612,32 @@ app.post("/v1/messages", async (req, res) => {
       `[API] Returning error response: ${statusCode} ${errorType} - ${errorMessage}`,
     );
 
-    // Check if headers have already been sent (for streaming that failed mid-way)
+    // Check if we should fallback (only for 429 or 503 errors and if we aren't already using the fallback model)
+    const canFallback =
+      (statusCode === 429 || statusCode === 503) &&
+      targetModel !== FALLBACK_MODEL &&
+      !stream; // Simple fallback only for non-streaming for now to avoid complexity
+
+    if (canFallback) {
+      console.log(
+        `[API] Primary model ${targetModel} failed with ${statusCode}. Attempting fallback to ${FALLBACK_MODEL}...`,
+      );
+      try {
+        const fallbackRequest = { ...request, model: FALLBACK_MODEL };
+        const fallbackResponse = await sendMessage(
+          fallbackRequest,
+          accountManager,
+        );
+        return res.json(fallbackResponse); // Return immediately on success
+      } catch (fallbackError) {
+        console.error(
+          `[API] Fallback to ${FALLBACK_MODEL} also failed:`,
+          fallbackError.message,
+        );
+        // Continue to return original error if fallback fails
+      }
+    }
+
     if (res.headersSent) {
       console.log("[API] Headers already sent, writing error as SSE event");
       res.write(
@@ -716,6 +743,34 @@ app.post("/v1/chat/completions", async (req, res) => {
     console.error("[API] OpenAI endpoint error:", error);
 
     const { errorType, statusCode, errorMessage } = parseError(error);
+
+    // OpenAI Fallback Logic (Non-streaming only)
+    const canFallback =
+      (statusCode === 400 || statusCode === 503) && // parseError maps 429 to 400 with "exhausted" message
+      errorMessage.includes("exhausted") &&
+      req.body.model !== FALLBACK_MODEL &&
+      !req.body.stream;
+
+    if (canFallback) {
+      console.log(
+        `[API] OpenAI request failed. Attempting fallback to ${FALLBACK_MODEL}...`,
+      );
+      try {
+        const fallbackBody = { ...req.body, model: FALLBACK_MODEL };
+        const anthropicRequest = convertOpenAIToAnthropic(fallbackBody);
+        const anthropicResponse = await sendMessage(
+          anthropicRequest,
+          accountManager,
+        );
+        const openaiResponse = convertAnthropicToOpenAI(
+          anthropicResponse,
+          FALLBACK_MODEL,
+        );
+        return res.json(openaiResponse);
+      } catch (fallbackError) {
+        console.error("[API] OpenAI fallback failed:", fallbackError.message);
+      }
+    }
 
     if (res.headersSent) {
       res.write(
