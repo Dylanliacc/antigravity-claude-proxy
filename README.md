@@ -57,6 +57,17 @@ chmod +x setup.sh
 
 ---
 
+## 📖 中文文档 (Chinese Documentation)
+
+完整的中文部署、配置和使用文档：**[docs/README.md](./docs/README.md)**
+
+- 🚀 [快速启动指南](./docs/快速启动指南.md) - 5分钟快速上手
+- 📚 [部署配置文档](./docs/部署配置文档.md) - 完整的服务器配置
+- 🔧 [故障排查速查表](./docs/故障排查速查表.md) - 常见问题解决
+- 💻 [本地使用指南](./docs/服务器Claude配置指南.md) - Windows/macOS/Linux 配置
+
+---
+
 ## One-Click Setup (推荐)
 
 如果你是克隆本仓库到本地使用，我们提供了一个全中文的一键配置脚本，可以自动完成依赖安装和账号配置。

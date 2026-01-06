@@ -9,6 +9,17 @@
  * Based on: https://github.com/NoeFabris/opencode-antigravity-auth
  */
 
+import { ProxyAgent, fetch as undiciFetch } from "undici";
+const createProxyFetch = () => {
+  const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  if (proxyUrl) {
+    const proxyAgent = new ProxyAgent(proxyUrl);
+    return (url, options = {}) => undiciFetch(url, { ...options, dispatcher: proxyAgent });
+  }
+  return undiciFetch;
+};
+const fetch = createProxyFetch();
+
 import crypto from "crypto";
 import {
   ANTIGRAVITY_ENDPOINT_FALLBACKS,
